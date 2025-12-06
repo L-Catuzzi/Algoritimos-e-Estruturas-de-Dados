@@ -1,115 +1,91 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "io.h"
-#include "paciente.h" 
-#include "pilha.h"
+#include "paciente.h"
 #include "lista.h"
-#include "fila.h"
+#include "heap.h"
+
+// Define o nome do arquivo binário
+#define NOME_ARQUIVO "hospital_data.bin"
 
 
-void salvar_sistema(LISTA* lista, FILA* fila) {
-    // Abre o arquivo em modo "write binary" (escrita binária)
-    FILE* arquivo = fopen(NOME_ARQUIVO_DADOS, "wb");
-    if (arquivo == NULL) {
-        printf("ERRO CRITICO: Nao foi possivel abrir o arquivo para salvar os dados.\n");
+void salvar_sistema(HEAP* h, LISTA* l) {
+    FILE* arq = fopen(NOME_ARQUIVO, "wb"); 
+    if (arq == NULL) {
+        printf("ERRO: Nao foi possivel criar o arquivo de dados!\n");
         return;
     }
-    // 1. Salvar contadores gerais
-    int total_pacientes_lista = lista->tamanho;
-    int total_pacientes_fila = fila->tamanho_atual;
-    fwrite(&total_pacientes_lista, sizeof(int), 1, arquivo);
-    fwrite(&total_pacientes_fila, sizeof(int), 1, arquivo);
-    fwrite(&(fila->tamanho_max), sizeof(int), 1, arquivo);
 
-    // 2. Salvar dados de cada paciente da LISTA GERAL
-    NOLISTA* no_paciente = lista->inicio;
-    
-    while (no_paciente != NULL) {
-        fwrite(&(no_paciente->paciente.id), sizeof(int), 1, arquivo);
-        fwrite(no_paciente->paciente.nome, sizeof(char), TAMANHO_NOME, arquivo);
+    // 1. SALVAR A LISTA (Histórico/Cadastro Geral)
+    // Escrevemos quantos pacientes existem na lista
+    int qtd_lista = (l != NULL) ? l->tamanho : 0;
+    fwrite(&qtd_lista, sizeof(int), 1, arq);
 
-        PILHA* historico = no_paciente->paciente.historico;
-        int total_procedimentos = historico->tamanho_atual;
-        fwrite(&total_procedimentos, sizeof(int), 1, arquivo);
-        
-        NOPILHA* no_procedimento = historico->topo;
-        while (no_procedimento != NULL) {
-            fwrite(no_procedimento->procedimento, sizeof(char), TAMANHO_PROCEDIMENTO, arquivo);
-            no_procedimento = no_procedimento->proximo;
+    if (l != NULL) {
+        NOLISTA* atual = l->inicio;
+        while (atual != NULL) {
+            fwrite(&(atual->paciente), sizeof(Paciente), 1, arq);
+            atual = atual->proximo;
         }
-        no_paciente = no_paciente->proximo;
     }
 
-    // 3. Salvar a FILA DE ESPERA (apenas os IDs)
-    NOFILA* no_fila = fila->inicio;
-    while(no_fila != NULL){
-        fwrite(&(no_fila->Paciente.id), sizeof(int), 1, arquivo);
-        no_fila = no_fila->proximo;
+    // 2. SALVAR O HEAP (Fila de Espera)
+    // Escrevemos os metadados do heap
+    int cap_heap = (h != NULL) ? h->capacidade_max : 0;
+    int qtd_heap = (h != NULL) ? h->tamanho_atual : 0;
+    int contador = (h != NULL) ? h->contador_global : 0;
+
+    fwrite(&cap_heap, sizeof(int), 1, arq);
+    fwrite(&qtd_heap, sizeof(int), 1, arq);
+    fwrite(&contador, sizeof(int), 1, arq);
+
+    if (h != NULL && qtd_heap > 0) {
+        // Salvamos o vetor inteiro de uma vez só! 
+        // Isso preserva a árvore binária exata como estava na memória
+        fwrite(h->vetor, sizeof(ELEMENTO_HEAP), qtd_heap, arq);
     }
 
-    fclose(arquivo);
-    printf("Dados do sistema salvos com sucesso em '%s'.\n", NOME_ARQUIVO_DADOS);
+    fclose(arq);
+    printf("\nDados do sistema salvos com sucesso em '%s'.\n", NOME_ARQUIVO);
 }
 
 
-// --- FUNÇÃO DE CARREGAR ---
-void carregar_sistema(LISTA** p_lista, FILA** p_fila) {
-    // Abre o arquivo em modo "read binary" (leitura binária)
-    FILE* arquivo = fopen(NOME_ARQUIVO_DADOS, "rb");
-    if (arquivo == NULL) {
-        printf("Arquivo de dados nao encontrado. Iniciando um novo sistema...\n");
-        *p_lista = cria_lista();
-        *p_fila = criar_fila(5); 
+void carregar_sistema(HEAP** h, LISTA *l) {
+    FILE* arq = fopen(NOME_ARQUIVO, "rb"); 
+    if (arq == NULL) {
+        printf("Arquivo de dados nao encontrado. Iniciando sistema vazio.\n");
+        // Se não tem arquivo, inicializa o Heap vazio 
+        *h = heap_criar(100); // Capacidade padrão se não tiver save
         return;
     }
 
-    // 1. Carregar contadores gerais
-    int total_pacientes_lista, total_pacientes_fila, capacidade_fila;
-    fread(&total_pacientes_lista, sizeof(int), 1, arquivo);
-    fread(&total_pacientes_fila, sizeof(int), 1, arquivo);
-    fread(&capacidade_fila, sizeof(int), 1, arquivo);
+    // 1. CARREGAR A LISTA
+    int qtd_lista;
+    fread(&qtd_lista, sizeof(int), 1, arq);
 
-    *p_lista = cria_lista();
-    *p_fila = criar_fila(capacidade_fila);
-
-    // 2. Carregar dados de cada paciente para a LISTA GERAL
-    for (int i = 0; i < total_pacientes_lista; i++) {
+    // Como 'l' já vem criado da main (vazio), apenas inserimos os pacientes
+    for (int i = 0; i < qtd_lista; i++) {
         Paciente p;
-        p.historico = criar_pilha();
-
-        fread(&(p.id), sizeof(int), 1, arquivo);
-        fread(p.nome, sizeof(char), TAMANHO_NOME, arquivo);
-        
-        int total_procedimentos;
-        fread(&total_procedimentos, sizeof(int), 1, arquivo);
-        
-        // Para manter a ordem LIFO, lemos os procedimentos e os inserimos em uma pilha temporária
-        PILHA* temp_pilha = criar_pilha();
-        char buffer_procedimento[TAMANHO_PROCEDIMENTO];
-        for (int j = 0; j < total_procedimentos; j++) {
-            fread(buffer_procedimento, sizeof(char), TAMANHO_PROCEDIMENTO, arquivo);
-            pilha_push(temp_pilha, buffer_procedimento); 
-        }
-
-        while(!historico_vazio(temp_pilha)){
-            pilha_pop(temp_pilha, buffer_procedimento);
-            pilha_push(p.historico, buffer_procedimento);
-        }
-        destruir_pilha(temp_pilha);
-
-        inserir_paciente(*p_lista, p);
+        fread(&p, sizeof(Paciente), 1, arq);
+        inserir_paciente(l, p); // Usa sua função padrão de lista
     }
 
-    // 3. Recriar a FILA DE ESPERA a partir dos IDs
-    for(int i = 0; i < total_pacientes_fila; i++){
-        int id_paciente_fila;
-        fread(&id_paciente_fila, sizeof(int), 1, arquivo);
-        Paciente* paciente_encontrado = buscar_paciente_por_id(*p_lista, id_paciente_fila);
-        if(paciente_encontrado != NULL){
-            inserir_paciente_fila(*p_fila, *paciente_encontrado);
-        }
+    // 2. CARREGAR O HEAP
+    int cap_heap, qtd_heap, contador;
+    fread(&cap_heap, sizeof(int), 1, arq);
+    fread(&qtd_heap, sizeof(int), 1, arq);
+    fread(&contador, sizeof(int), 1, arq);
+
+    // Recria o heap com a capacidade correta
+    *h = heap_criar(cap_heap);
+    (*h)->tamanho_atual = qtd_heap;
+    (*h)->contador_global = contador;
+
+    if (qtd_heap > 0) {
+        // Lê o vetor inteiro de volta para a memória
+        fread((*h)->vetor, sizeof(ELEMENTO_HEAP), qtd_heap, arq);
     }
 
-    fclose(arquivo);
-    printf("Dados do sistema carregados com sucesso de '%s'.\n", NOME_ARQUIVO_DADOS);
+    fclose(arq);
+    printf("\nDados carregados! %d pacientes no cadastro, %d na fila de espera.\n", qtd_lista, qtd_heap);
 }

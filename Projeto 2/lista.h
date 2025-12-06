@@ -16,14 +16,14 @@
         NOLISTA* proximo;  
         NOLISTA* anterior; 
     };
+    
     LISTA* cria_lista();
     void inserir_paciente(LISTA *lista, Paciente paciente);
-    void apagar_paciente(LISTA *lista, int id);
     Paciente buscar_paciente(LISTA *lista, char nome[]);
     Paciente* buscar_paciente_por_id(LISTA* lista, int id);
     void listar_pacientes(LISTA *lista);
     void destruir_lista(LISTA* lista);
-
+    void apagar_paciente_por_id(LISTA* lista, int id);
 
 
 

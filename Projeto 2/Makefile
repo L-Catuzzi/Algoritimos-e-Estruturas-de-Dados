@@ -1,36 +1,56 @@
 # --- Variáveis de Configuração ---
 CC = gcc
+# Flags: -Wall (avisos), -g (debug), -std=c11 (padrão C atual)
 CFLAGS = -Wall -g -std=c11
 
-# O nome do arquivo executável que será gerado
-EXEC = hospital_ps
+# Nome do executável final
+EXEC = hospital_system
 
-# Lista de todos os arquivos de código-fonte (.c) do projeto
-SOURCES = main.c lista.c fila.c pilha.c io.c
+# Lista de arquivos fonte (.c) baseada nas suas imagens
+SOURCES = main.c lista.c heap.c io.c 
 
-# Gera automaticamente a lista de arquivos objeto (.o) a partir da lista de fontes
+# Gera a lista de objetos (.o) automaticamente
 OBJECTS = $(SOURCES:.c=.o)
 
-# --- Regras (Targets) ---
+# --- Regras Principais ---
 
+# Regra padrão (ao digitar 'make')
 all: $(EXEC)
 
+# Linkagem: Cria o executável a partir dos objetos
 $(EXEC): $(OBJECTS)
+	@echo "Linkando o executavel: $@"
 	$(CC) $(CFLAGS) -o $@ $^
+	@echo "Compilacao concluida com sucesso!"
 
+# Compilação Genérica: Transforma .c em .o
 %.o: %.c
-	# $< significa "a primeira dependência" (o arquivo .c correspondente).
 	$(CC) $(CFLAGS) -c $< -o $@
 
-main.o: main.c lista.h paciente.h fila.h pilha.h io.h
-lista.o: lista.c lista.h paciente.h pilha.h           
-fila.o: fila.c fila.h paciente.h
-pilha.o: pilha.c pilha.h paciente.h lista.h           
-io.o: io.c io.h lista.h fila.h pilha.h paciente.h
+# --- Dependências dos Headers ---
+# Garante que se um .h mudar, o .c correspondente recompila
 
-# --- Regras "Falsas" (Phony Targets) ---
+# O main conecta tudo
+main.o: main.c lista.h heap.h io.h paciente.h
 
-.PHONY: clean
+# Estruturas de Dados
+lista.o: lista.c lista.h paciente.h
+heap.o: heap.c heap.h paciente.h
 
+
+# Módulo de Persistência (IO)
+# O IO precisa conhecer Lista e Heap para salvar/carregar
+io.o: io.c io.h lista.h heap.h paciente.h
+
+# --- Regras de Limpeza ---
+
+.PHONY: clean run
+
+# Limpa arquivos temporários e executável
 clean:
-	rm -f $(EXEC) $(OBJECTS)
+	rm -f $(OBJECTS) $(EXEC)
+	@echo "Limpeza concluida."
+
+# Compila e roda o programa imediatamente
+run: all
+	./$(EXEC)

@@ -5,15 +5,6 @@
 #include <string.h>
 
 
-
-
-/**
- * @brief Aloca memória e inicializa uma nova lista vazia.
- * * A função aloca dinamicamente uma estrutura Lista e configura
- * seus ponteiros 'inicio' e 'fim' como NULL e seu 'tamanho' como 0,
- * @return Um ponteiro (Lista*) para a lista recém-criada, ou NULL se a 
- * alocação de memória falhar.
- */
 LISTA* cria_lista(){
     LISTA* nova_lista = (LISTA*) malloc(sizeof(LISTA));
 
@@ -69,11 +60,6 @@ void inserir_paciente(LISTA *lista, Paciente paciente){
 
 
 
-/**
- * @brief 
- * @return Um ponteiro (Paciente*) para o paciente que tiver o nome
- * da busca, ou uma mensagem de erro caso não haja esse paciente
- */
 Paciente buscar_paciente(LISTA *lista, char nome[]){
     Paciente paciente_nao_encontrado = {-1, "Nao encontrado"}; // Paciente "fantasma" para erro
 
@@ -118,10 +104,7 @@ void printa_paciente(NOLISTA *no){
     printf("Informacoes do paciente:\nnome: %s\nID: %d\n", no->paciente.nome,no->paciente.id);
 }
 
-/**
- * @brief Percorre toda a lista do começo ao fim, prinando
- * as informações de todos os pacientes
- */
+
 void listar_pacientes(LISTA *lista){
     if (lista == NULL || lista->inicio == NULL) {
         printf("A lista de pacientes está vazia.\n");
@@ -138,48 +121,6 @@ void listar_pacientes(LISTA *lista){
 }
 
 
-/**
- * @brief Realiza a busca do paciente a partir do nome
- * e exclui ele da lista de pacientes
-*/
- 
-void apagar_paciente(LISTA* lista, int id) {
-    if (lista == NULL || lista->inicio == NULL) {
-        printf("Nao e possivel apagar: a lista esta vazia.\n");
-        return;
-    }
-
-    NOLISTA *no_para_apagar = lista->inicio;
-
-    // Encontra o nó a ser apagado pelo ID
-    while (no_para_apagar != NULL && no_para_apagar->paciente.id != id) {
-        no_para_apagar = no_para_apagar->proximo;
-    }
-
-    if (no_para_apagar == NULL) {
-        printf("ERRO: Paciente com ID %d nao encontrado para apagar.\n", id);
-        return;
-    }
-
-    if (no_para_apagar->anterior != NULL) {
-        no_para_apagar->anterior->proximo = no_para_apagar->proximo;
-    } else {
-        lista->inicio = no_para_apagar->proximo;
-    }
-    if (no_para_apagar->proximo != NULL) {
-        no_para_apagar->proximo->anterior = no_para_apagar->anterior;
-    } else {
-        lista->fim = no_para_apagar->anterior;
-    }
-
-    // Limpeza de memória (histórico e depois o nó)
-    printf("Apagando registro e historico do paciente '%s'...\n", no_para_apagar->paciente.nome);
-    destruir_pilha(no_para_apagar->paciente.historico);
-    free(no_para_apagar); 
-    lista->tamanho--;     
-
-    printf("Registro do paciente com ID %d apagado com sucesso.\n", id);
-}
 
 void destruir_lista(LISTA* lista) {
     if (lista == NULL) return;
@@ -191,8 +132,6 @@ void destruir_lista(LISTA* lista) {
         proximo_no = no_atual->proximo;
 
         // Para cada paciente, primeiro destrua seu histórico
-        destruir_pilha(no_atual->paciente.historico);
-        
         free(no_atual);
 
         no_atual = proximo_no;
@@ -200,4 +139,47 @@ void destruir_lista(LISTA* lista) {
 
     free(lista);
     printf("Lista de pacientes e todos os historicos foram destruidos.\n");
+}
+
+void apagar_paciente_por_id(LISTA* lista, int id) {
+    if (lista == NULL || lista->inicio == NULL) {
+        printf("Erro: Lista vazia ou inexistente.\n");
+        return;
+    }
+
+    NOLISTA* atual = lista->inicio;
+    NOLISTA* anterior = NULL;
+
+    // Busca o nó
+    while (atual != NULL && atual->paciente.id != id) {
+        anterior = atual;
+        atual = atual->proximo;
+    }
+
+    // Se não encontrou
+    if (atual == NULL) {
+        printf("Erro: Paciente com ID %d nao encontrado na lista.\n", id);
+        return;
+    }
+
+    // Lógica de remoção da lista encadeada
+    if (anterior == NULL) {
+        // Removendo o primeiro elemento
+        lista->inicio = atual->proximo;
+        // Se a lista tinha só 1 elemento, o fim também vira NULL
+        if (lista->inicio == NULL) {
+            lista->fim = NULL;
+        }
+    } else {
+        // Removendo do meio ou fim
+        anterior->proximo = atual->proximo;
+        // Se removeu o último, atualiza o ponteiro fim
+        if (atual->proximo == NULL) {
+            lista->fim = anterior;
+        }
+    }
+
+    free(atual); 
+    lista->tamanho--;
+    printf("Sucesso: Paciente removido do cadastro geral.\n");
 }
